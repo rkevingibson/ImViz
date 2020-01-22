@@ -106,6 +106,7 @@ Application::Application(const AppCreationInfo& info) : impl{ std::make_unique<A
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+        Im3d::NewFrame(ctx.im3d);
 
 
         // Run the main loop function
@@ -114,12 +115,15 @@ Application::Application(const AppCreationInfo& info) : impl{ std::make_unique<A
 
         // Rendering
         ImGui::Render();
+        Im3d::Render(ctx.im3d);
+
         int display_w, display_h;
         glfwGetFramebufferSize(impl->window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
-        glClearColor(0, 0, 0, 1);
+        glClearColor(1, 1, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        Im3d::RenderDrawDataOpenGL(Im3d::GetDrawList());
 
         glfwSwapBuffers(impl->window);
     }

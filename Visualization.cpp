@@ -11,7 +11,7 @@ void testLoop(const AppContext* ctx, void*)
 
 	if (ImGui::Begin("Test"))
 	{
-		Im3d::Begin(ctx->im3d, "Test Image");
+		Im3d::Begin(ctx->im3d, "Test Image", ImVec2(600,400));
 
 		Im3d::DrawPoints(ctx->im3d, nullptr, 0);
 
