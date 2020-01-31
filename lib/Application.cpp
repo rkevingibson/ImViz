@@ -27,6 +27,16 @@ namespace
     {
         return glfwGetClipboardString((GLFWwindow*)userData);
     }
+
+    
+
+    void APIENTRY glMessageCallback(GLenum source,
+        GLenum type, GLuint id, GLenum severity, GLsizei length,
+        const GLchar* message,
+        void* userParam)
+    {
+        printf("%s\n", message);
+    }
 }
 
 struct Application::ApplicationImpl
@@ -42,8 +52,8 @@ struct Application::ApplicationImpl
             return false;
         }
 
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
         window = glfwCreateWindow(info.initialWidth, info.initialHeight, info.title, nullptr, nullptr);
@@ -63,6 +73,8 @@ struct Application::ApplicationImpl
             return false;
         }
 
+        glDebugMessageCallback(glMessageCallback, nullptr);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
         return true;
     }
 
@@ -94,8 +106,6 @@ Application::Application(const AppCreationInfo& info) : impl{ std::make_unique<A
 
     AppContext ctx{};
 
-    ctx.im3d = Im3d::CreateContext();
-
     while (!glfwWindowShouldClose(impl->window))
     {
         // Process user input
@@ -106,8 +116,7 @@ Application::Application(const AppCreationInfo& info) : impl{ std::make_unique<A
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        Im3d::NewFrame(ctx.im3d);
-
+        
 
         // Run the main loop function
         (*info.loop)(&ctx, info.userData);
@@ -115,7 +124,6 @@ Application::Application(const AppCreationInfo& info) : impl{ std::make_unique<A
 
         // Rendering
         ImGui::Render();
-        Im3d::Render(ctx.im3d);
 
         int display_w, display_h;
         glfwGetFramebufferSize(impl->window, &display_w, &display_h);
@@ -123,7 +131,7 @@ Application::Application(const AppCreationInfo& info) : impl{ std::make_unique<A
         glClearColor(1, 1, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        Im3d::RenderDrawDataOpenGL(Im3d::GetDrawList());
+        
 
         glfwSwapBuffers(impl->window);
     }

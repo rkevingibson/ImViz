@@ -1,11 +1,6 @@
 #pragma once
 #include <memory>
 
-namespace Im3d
-{
-    struct Context;
-}
-
 /*
     We define a very simple way to make a Gui application using some predefined interfaces.
     In short, all the user should have to do is provide a main loop function, and everything else will be handled.
@@ -15,7 +10,7 @@ namespace Im3d
 
 struct AppContext
 {
-    Im3d::Context* im3d;
+
 
 };
 

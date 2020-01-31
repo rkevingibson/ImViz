@@ -4,20 +4,42 @@
 #include "imgui.h"
 #include "Im3D.h"
 
-
-void testLoop(const AppContext* ctx, void*)
+struct AppData
 {
+	View3d* view3d{ nullptr };
+};
+
+void testLoop(const AppContext* ctx, void* userData)
+{
+	AppData* appData = (AppData*)userData;
+	if (appData->view3d == nullptr)
+	{
+		appData->view3d = new View3d(ImVec2(600, 400));
+	}
+
+
+	appData->view3d->SetBackgroundColor(0, 0, 0, 1.f);
 	ImGui::ShowDemoWindow();
 
 	if (ImGui::Begin("Test"))
 	{
-		Im3d::Begin(ctx->im3d, "Test Image", ImVec2(600,400));
+		Vec3 tri[3] = {
+			{ 0.0f, -0.5f, 0.f},
+			{-0.5f, 0.5f,  0.f},
+			{ 0.5f, 0.5f,  0.f}
+		};
 
-		Im3d::DrawPoints(ctx->im3d, nullptr, 0);
+		appData->view3d->DrawPoints(tri, 3);
 
-		Im3d::End(ctx->im3d);
+		appData->view3d->DrawLine(tri[0], tri[1]);
+		appData->view3d->DrawLine(tri[1], tri[2]);
+
+		appData->view3d->Image(ImVec2(600, 400));
 	}
 	ImGui::End();
+
+
+	appData->view3d->Render();
 }
 
 
@@ -26,6 +48,11 @@ int main()
 	AppCreationInfo info{};
 	info.title = "Test App";
 	info.loop = testLoop;
+	info.initialHeight = 1580;
+	info.initialWidth = 2520;
+	AppData appData;
+	
+	info.userData = &appData;
 	
 
 	Application app(info);
