@@ -134,8 +134,19 @@ namespace
         Quaternion() = default;
         Quaternion(float a, float b, float c, float s) : x{ a }, y{ b }, z{ c }, w{ s } {}
         Quaternion(const Vec3& v, float s = 0) : x{ v.x }, y{ v.y }, z{ v.z }, w{ s }{}
+        Quaternion(const Quaternion&) = default;
+        Quaternion(Quaternion&&) = default;
+
+        Quaternion& operator=(const Quaternion&) = default;
+        Quaternion& operator=(Quaternion&&) = default;
 
         Vec3 GetVectorPart() const { return Vec3{ x, y, z }; }
+
+        static Quaternion FromAxisAngle(const Vec3& axis, float angle)
+        {
+            float s = sinf(angle *0.5f);
+            return Quaternion(axis.x * s, axis.y * s, axis.z * s, cosf(angle * 0.5f));
+        }
 
         void Normalize()
         {
@@ -219,6 +230,23 @@ namespace
         m[8] = 0; m[9] = 0; m[10] = -(n + f) / (n - f); m[11] = 1;
         m[12] = 0; m[13] = 0; m[14] = 2 * n * f / (n - f); m[15] = 0;
     }
+
+    Vec3 GetArcballVector(float x, float y)
+    {
+        Vec3 p{ x, y, 0 };
+        float OP_squared = p.x * p.x + p.y * p.y;
+        if (OP_squared < 1)
+        {
+            p.z = sqrtf(1 - OP_squared);
+        }
+        else
+        {
+            float norm = sqrtf(OP_squared);
+            p.x /= norm;
+            p.y /= norm;
+        }
+        return p;
+    }
 }
 
 
@@ -239,13 +267,13 @@ struct View3d::Impl
     GLuint elementsArray;
 
     Vec3 cameraTarget{ 0.f,0.f,0.f };
-    Vec3 cameraOffset{ 0.f,0.f,1.f };
+    Vec3 cameraOffset{ 0.f,0.f,10.f };
     Quaternion cameraOrientation{ 0,0,0,1 };
 
     float nearPlane = 0.1;
     float farPlane = 100;
-    float right = 1.f;
-    float top = 1.f;
+    float horizontalFovDegrees = 30.f;
+    float cameraSpeed = 5.f;
 
     bool Initialize(const ImVec2& fbSize)
     {
@@ -270,7 +298,6 @@ struct View3d::Impl
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, framebufferSize.x, framebufferSize.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
-
         glGenRenderbuffers(1, &depthbuffer);
         glBindRenderbuffer(GL_RENDERBUFFER, depthbuffer);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, framebufferSize.x, framebufferSize.y);
@@ -286,7 +313,6 @@ struct View3d::Impl
             return false;
         }
 
-
         //Restore framebuffer state
         glBindFramebuffer(GL_FRAMEBUFFER, prevFramebuffer);
         glBindRenderbuffer(GL_RENDERBUFFER, prevRenderbuffer);
@@ -294,13 +320,6 @@ struct View3d::Impl
 
         glGenBuffers(1, &vertexArray);
         glGenBuffers(1, &elementsArray);
-
-
-
-        {
-
-        }
-
 
         return true;
     }
@@ -386,13 +405,18 @@ void View3d::Render()
     // Camera setup
 
     float cameraFromWorld[16];
-    Vec3 cameraPos = impl->cameraTarget + Rotate(impl->cameraOffset, impl->cameraOrientation);
+    Vec3 cameraPos = impl->cameraTarget + impl->cameraOffset;
 
     FillTransformMatrix(impl->cameraOrientation, cameraPos, cameraFromWorld);
     glUniformMatrix4fv(uniformLocationCamFromWorld, 1, GL_FALSE, cameraFromWorld);
 
     float clipFromCamera[16];
-    FillProjectionMatrix(impl->nearPlane, impl->farPlane, impl->right, impl->top, clipFromCamera);
+
+    float right = tanf(0.5f * 3.141592f / 180.f* impl->horizontalFovDegrees)*impl->nearPlane;
+    float heightByWidth = impl->framebufferSize.y / impl->framebufferSize.x;
+
+
+    FillProjectionMatrix(impl->nearPlane, impl->farPlane, right, right*heightByWidth, clipFromCamera);
     glUniformMatrix4fv(uniformLocationClipFromCamera, 1, GL_FALSE, clipFromCamera);
 
     //Copy over the buffer data.
@@ -506,19 +530,40 @@ void View3d::Image(const ImVec2 & size)
     {
         // Update camera information here.
         ImVec2 currentPos = ImGui::GetMousePos();
+        //Convert mouse position to [-1,1] in the framebuffer coordinates.
 
-        ImGui::Text("Mouse at %f, %f", currentPos.x, currentPos.y);
-        ImGui::Text("Clicked at %f, %f", lastClickedPos.x, lastClickedPos.y);
+        ImVec2 size = image_bb.GetSize();
+        //Clicked position from [-1,1]
+        ImVec2 lastClickedCam(2*(lastClickedPos.x - image_bb.Min.x)/size.x - 1, 2*(lastClickedPos.y - image_bb.Min.y)/size.y -1);
+        ImVec2 currentPosCam(2 * (currentPos.x - image_bb.Min.x) / size.x - 1, 2 * (currentPos.y - image_bb.Min.y) / size.y - 1);
+
+
+        Vec3 OP1 = GetArcballVector(lastClickedCam.x, lastClickedCam.y);
+        Vec3 OP2 = GetArcballVector(currentPosCam.x, currentPosCam.y);
+
+        ImVec2 screenDisp = currentPosCam - lastClickedCam;
+
+        float movement = sqrtf(screenDisp.x* screenDisp.x + screenDisp.y * screenDisp.y);
+
+        float angle = movement*impl->cameraSpeed;
+        Vec3 axis = Rotate(Cross(OP1, OP2), impl->cameraOrientation);
+        
+        if (!isnan(angle))
+        {
+            Quaternion q = Quaternion::FromAxisAngle(axis, angle);
+
+            impl->cameraOrientation = q * impl->cameraOrientation;
+            impl->cameraOrientation.Normalize();
+        }
+        lastClickedPos = currentPos;
+        ImGui::Text("Angle %f, Axis %f, %f, %f", angle, axis.x, axis.y, axis.z);
     }
 
     ImGui::SliderFloat3("Camera Target", (float*)(&impl->cameraTarget), -1, 1);
-
-    ImGui::SliderFloat4("Camera quat", (float*)(&impl->cameraOrientation), -1, 1);
-    impl->cameraOrientation.Normalize();
-
-
+    ImGui::SliderFloat3("Camera Offset", (float*)(&impl->cameraOffset), -10, 10);
     ImGui::SliderFloat("Camera near", &impl->nearPlane, 0, 1);
     ImGui::SliderFloat("Camera far", &impl->farPlane, 0, 1000);
-    ImGui::SliderFloat("Camera right", &impl->right, 0, 1000);
-    ImGui::SliderFloat("Camera top", &impl->top, 0, 1000);
+    ImGui::SliderFloat("Camera FOV", &impl->horizontalFovDegrees, 0, 90);
+    ImGui::SliderFloat("Camera Speed", &impl->cameraSpeed, 0, 5);
+    
 }

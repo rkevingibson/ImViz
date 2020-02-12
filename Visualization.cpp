@@ -14,7 +14,7 @@ void testLoop(const AppContext* ctx, void* userData)
 	AppData* appData = (AppData*)userData;
 	if (appData->view3d == nullptr)
 	{
-		appData->view3d = new View3d(ImVec2(600, 400));
+		appData->view3d = new View3d(ImVec2(1200, 800));
 	}
 
 
@@ -34,7 +34,7 @@ void testLoop(const AppContext* ctx, void* userData)
 		appData->view3d->DrawLine(tri[0], tri[1]);
 		appData->view3d->DrawLine(tri[1], tri[2]);
 
-		appData->view3d->Image(ImVec2(600, 400));
+		appData->view3d->Image(ImVec2(1200, 800));
 	}
 	ImGui::End();
 
