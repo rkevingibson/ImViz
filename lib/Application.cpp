@@ -93,7 +93,7 @@ Application::Application(const AppCreationInfo& info) : impl{ std::make_unique<A
     ImGui::StyleColorsDark();
     ImGuiIO& io = ImGui::GetIO();
     ImFontConfig fontConfig{};
-
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     float scaleFactor = 2.f;
     
     fontConfig.SizePixels = scaleFactor*13.f;

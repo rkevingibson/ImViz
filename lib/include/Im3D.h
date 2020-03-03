@@ -29,6 +29,8 @@ public:
     void DrawPoints(const Vec3* points, int numPoints);
 
     void DrawLine(const Vec3 start, const Vec3 end);
+
+    void DrawViewBall();
     /*
     */
     void Render();
