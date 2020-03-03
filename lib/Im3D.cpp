@@ -197,7 +197,7 @@ namespace
     {
         return Vec3{ a.x + b.x, a.y + b.y, a.z + b.z };
     }
-    
+
     Vec3 operator-(const Vec3& a, const Vec3& b)
     {
         return Vec3{ a.x - b.x, a.y - b.y, a.z - b.z };
@@ -408,7 +408,7 @@ void View3d::DrawLine(const Vec3 start, const Vec3 end)
 
 void View3d::DrawViewBall()
 {
-    Vec3 center = Vec3{ 0,0,0 } - impl->cameraTarget;
+    Vec3 center = Vec3{ 0,0,0 } -impl->cameraTarget;
     // Compute radius based on camera parameters - want a fixed size on screen.
     // TODO: This needs to consider fov, etc.
 
@@ -576,7 +576,6 @@ void View3d::Render()
 
 void View3d::Image(const ImVec2 & size)
 {
-
     ImGuiWindow* window = ImGui::GetCurrentWindow();
     if (window->SkipItems)
         return;
@@ -596,8 +595,8 @@ void View3d::Image(const ImVec2 & size)
     if (!ImGui::ItemAdd(bb, id))
         return;
 
-    bool hovered, leftHeld, rightHeld;
-    bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &leftHeld, ImGuiButtonFlags_MouseButtonLeft);
+    bool hovered, held;
+    bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
 
     // Render
     const ImVec2 uv_min = ImVec2(0, 0);
@@ -605,33 +604,32 @@ void View3d::Image(const ImVec2 & size)
     window->DrawList->AddImage((ImTextureID)impl->colorTexture, image_bb.Min, image_bb.Max, uv_min, uv_max, IM_COL32_WHITE);
 
     // Handle camera controls.
+    auto& io = ImGui::GetIO();
 
     bool leftClicked = ImGui::IsItemClicked(ImGuiMouseButton_Left);
     bool rightClicked = ImGui::IsItemClicked(ImGuiMouseButton_Right);
-    
+
     static ImVec2 lastClickedPos;
     static Vec3 lastClickedUp;
     static Vec3 lastClickedCamPos;
     static Vec3 lastClickedTarget;
+
     if (leftClicked || rightClicked)
     {
         lastClickedPos = ImGui::GetMousePos();
         lastClickedUp = impl->cameraUp;
         lastClickedCamPos = impl->cameraPosition;
         lastClickedTarget = impl->cameraTarget;
-        
     }
 
-    if (leftHeld)
+    // Get Mouse delta in normalized range ([-1,1])
+    ImVec2 currentPos = ImGui::GetMousePos();
+    ImVec2 lastClickedCam(2 * (lastClickedPos.x - image_bb.Min.x) / size.x - 1, 2 * (lastClickedPos.y - image_bb.Min.y) / size.y - 1);
+    ImVec2 currentPosCam(2 * (currentPos.x - image_bb.Min.x) / size.x - 1, 2 * (currentPos.y - image_bb.Min.y) / size.y - 1);
+    Vec3 movementDir{ currentPosCam.x - lastClickedCam.x, currentPosCam.y - lastClickedCam.y, 0.f };
+
+    if (held && io.MouseDown[ImGuiMouseButton_Left])
     {
-        // Update camera information here.
-        ImVec2 currentPos = ImGui::GetMousePos();
-        //Convert mouse position to [-1,1] in the framebuffer coordinates.
-        ImVec2 size = image_bb.GetSize();
-        //Clicked position from [-1,1]
-        ImVec2 lastClickedCam(2 * (lastClickedPos.x - image_bb.Min.x) / size.x - 1, 2 * (lastClickedPos.y - image_bb.Min.y) / size.y - 1);
-        ImVec2 currentPosCam(2 * (currentPos.x - image_bb.Min.x) / size.x - 1, 2 * (currentPos.y - image_bb.Min.y) / size.y - 1);
-        Vec3 movementDir{ currentPosCam.x - lastClickedCam.x, currentPosCam.y - lastClickedCam.y, 0.f };
         float angle = Length(movementDir);
 
         if (!isnan(angle) && angle != 0)
@@ -644,14 +642,12 @@ void View3d::Image(const ImVec2 & size)
             Vec3 camSideways = Normalized(Cross(camUp, eyeDir));
             movementDir = movementDir.y * camUp + movementDir.x * camSideways;
             Vec3 axis = Normalized(Cross(movementDir, eye));
-            
+
             Quaternion q = Quaternion::FromAxisAngle(axis, angle);
             impl->cameraUp = Rotate(lastClickedUp, q);
             impl->cameraPosition = Rotate(eye, q) + impl->cameraTarget;
         }
     }
-
-    auto& io = ImGui::GetIO();
 
     // Zoom
     if (hovered)
@@ -660,40 +656,27 @@ void View3d::Image(const ImVec2 & size)
 
         Vec3 eye = impl->cameraPosition - impl->cameraTarget;
         // Scale it down by some percentage each zoomDelta of 1.
-        eye = (1.0f - (impl->cameraZoomSpeed*zoomDelta*0.01f)) * eye;
+        eye = (1.0f - (impl->cameraZoomSpeed * zoomDelta * 0.01f)) * eye;
         impl->cameraPosition = eye + impl->cameraTarget;
-        ImGui::Text("Mouse Wheel %f", zoomDelta);
     }
 
-
     //Pan camera.
-    if (hovered && io.MouseDown[ImGuiMouseButton_Right])
+    if (held && io.MouseDown[ImGuiMouseButton_Right])
     {
         // Pan by moving the target and camera position, keeping the eye vector constant. 
         // We pan perpendicularly to the eye direction.
         Vec3 eye = lastClickedCamPos - lastClickedTarget;
         Vec3 upDir = Normalized(impl->cameraUp);
         Vec3 rightDir = Normalized(Cross(upDir, eye));
-        // Update camera information here.
-        ImVec2 currentPos = ImGui::GetMousePos();
-        //Convert mouse position to [-1,1] in the framebuffer coordinates.
-        ImVec2 size = image_bb.GetSize();
-        //Clicked position from [-1,1]
-        ImVec2 lastClickedCam(2 * (lastClickedPos.x - image_bb.Min.x) / size.x - 1, 2 * (lastClickedPos.y - image_bb.Min.y) / size.y - 1);
-        ImVec2 currentPosCam(2 * (currentPos.x - image_bb.Min.x) / size.x - 1, 2 * (currentPos.y - image_bb.Min.y) / size.y - 1);
-        Vec3 movementDir{ currentPosCam.x - lastClickedCam.x, currentPosCam.y - lastClickedCam.y, 0.f };
+
         impl->cameraPosition = lastClickedCamPos + upDir * movementDir.y;
         impl->cameraPosition = impl->cameraPosition + rightDir * movementDir.x;
         impl->cameraTarget = impl->cameraPosition - eye;
-
-        ImGui::Text("Held!");
     }
 
-    ImGui::SliderFloat3("Camera Target", (float*)(&impl->cameraTarget), -1, 1);
     ImGui::SliderFloat("Camera near", &impl->nearPlane, 0, 1);
     ImGui::SliderFloat("Camera far", &impl->farPlane, 0, 1000);
     ImGui::SliderFloat("Camera FOV", &impl->horizontalFovDegrees, 0, 90);
     ImGui::SliderFloat("Camera Speed (Rot)", &impl->cameraRotateSpeed, 0, 5);
     ImGui::SliderFloat("Camera Speed (Zoom)", &impl->cameraZoomSpeed, 0, 5);
-
 }
